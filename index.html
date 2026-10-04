@@ -34,6 +34,27 @@
         header h1 { font-size: 1.25rem; font-weight: 700; color: var(--primary-dark); display: flex; align-items: center; justify-content: center; gap: 8px; }
         header p { font-size: 0.875rem; color: var(--text-muted); margin-top: 4px; }
 
+        /* Rekapitulasi / Statistik */
+        .rekap-wrapper { max-width: 1200px; margin: 20px auto 0; padding: 0 15px; }
+        .rekap-container {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px;
+            -ms-overflow-style: none; scrollbar-width: none;
+        }
+        .rekap-container::-webkit-scrollbar { display: none; }
+        
+        .rekap-card {
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+            padding: 12px 15px; min-width: 100px; text-align: center; flex: 1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .rekap-card .label { display: block; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; margin-bottom: 4px; }
+        .rekap-card .value { font-size: 1.5rem; font-weight: 700; color: var(--text-main); }
+        
+        /* Highlight khusus untuk Alpa */
+        .rekap-card.alpa { background: #fff1f2; border-color: #fecdd3; }
+        .rekap-card.alpa .label { color: #be123c; }
+        .rekap-card.alpa .value { color: #e11d48; }
+
         /* Tab Navigation (Scrollable di HP) */
         .tabs-container {
             max-width: 1200px; margin: 20px auto; padding: 0 15px;
@@ -100,14 +121,19 @@
         /* Empty State */
         .empty-state { text-align: center; padding: 40px; color: var(--text-muted); display: none; grid-column: 1 / -1; }
 
-        /* Lightbox (Zoom Image) */
+        /* Lightbox (Zoom & PDF Preview) */
         .lightbox {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.9); z-index: 999;
             align-items: center; justify-content: center; flex-direction: column;
         }
-        .lightbox img { max-width: 95%; max-height: 85vh; border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
-        .close-lightbox { color: white; font-size: 30px; position: absolute; top: 20px; right: 30px; cursor: pointer; }
+        .lightbox-content {
+            width: 95%; max-width: 800px; height: 80vh; 
+            background: #fff; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); position: relative;
+        }
+        .lightbox iframe { width: 100%; height: 100%; border: none; }
+        .close-lightbox { color: white; font-size: 35px; position: absolute; top: 15px; right: 25px; cursor: pointer; font-weight: bold; }
         .lightbox-caption { color: white; margin-top: 15px; font-size: 1rem; }
 
     </style>
@@ -118,6 +144,40 @@
         <h1><i class="fa-solid fa-bolt"></i> Portal Validasi Voltage</h1>
         <p>Sistem Pengecekan Kehadiran & Izin IONICS</p>
     </header>
+
+    <!-- Area Rekapitulasi -->
+    <div class="rekap-wrapper">
+        <div class="rekap-container">
+            <div class="rekap-card">
+                <span class="label">Total</span>
+                <span class="value">284</span>
+            </div>
+            <div class="rekap-card">
+                <span class="label">Hadir</span>
+                <span class="value" id="rek-hadir">...</span>
+            </div>
+            <div class="rekap-card">
+                <span class="label">Sakit</span>
+                <span class="value" id="rek-sakit">...</span>
+            </div>
+            <div class="rekap-card">
+                <span class="label">Agama</span>
+                <span class="value" id="rek-keagamaan">...</span>
+            </div>
+            <div class="rekap-card">
+                <span class="label">Duka</span>
+                <span class="value" id="rek-berduka">...</span>
+            </div>
+            <div class="rekap-card">
+                <span class="label">Akademik</span>
+                <span class="value" id="rek-akademik">...</span>
+            </div>
+            <div class="rekap-card alpa">
+                <span class="label">Alpa</span>
+                <span class="value" id="rek-alpa">...</span>
+            </div>
+        </div>
+    </div>
 
     <div class="tabs-container">
         <div class="tabs">
@@ -146,8 +206,10 @@
 
     <!-- Lightbox Modal -->
     <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-        <span class="close-lightbox">&times;</span>
-        <img id="lightboxImg" src="" alt="Bukti Diperbesar" onclick="event.stopPropagation()">
+        <span class="close-lightbox" onclick="closeLightbox()">&times;</span>
+        <div class="lightbox-content" onclick="event.stopPropagation()">
+            <iframe id="lightboxIframe" src=""></iframe>
+        </div>
         <div class="lightbox-caption" id="lightboxCaption"></div>
     </div>
 
@@ -159,15 +221,10 @@
         let currentTab = 'HADIR';
 
         // Konversi URL Drive biasa menjadi URL Direct Download (Bisa dirender img src)
-        function getDirectImageUrl(url) {
+        function getDriveFileId(url) {
             if (!url) return null;
-            const idMatch = url.match(/id=([^&]+)/);
-            if (idMatch && idMatch[1]) {
-                // Menggunakan endpoint /thumbnail?id= yang lebih aman dari blokir CORS Google
-                // sz=w1000 digunakan agar resolusi gambar tetap tajam dan bisa di-zoom
-                return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`;
-            }
-            return null;
+            const match = url.match(/id=([^&]+)/) || url.match(/d\/([a-zA-Z0-9_-]+)/);
+            return match ? match[1] : null;
         }
 
         async function loadData(sheetName) {
@@ -187,20 +244,28 @@
                 let hasValidData = false;
 
                 data.forEach(peserta => {
-                    if(!peserta.Nama || !peserta.NRP) return; 
+                    // Abaikan jika nama/NRP kosong atau jika Nama adalah error dari rumus
+                    if(!peserta.Nama || !peserta.NRP || peserta.Nama === "#N/A" || peserta.Nama === "#REF!") return; 
                     hasValidData = true;
                     
-                    const imgUrl = getDirectImageUrl(peserta["Bukti Foto"]);
+                    const fileId = getDriveFileId(peserta["Bukti Foto"]);
                     const card = document.createElement("div");
                     card.className = "card";
                     
-                    // Render Image Area
                     let imgArea = '';
-                    if (imgUrl) {
+                    if (fileId) {
+                        // Thumbnail untuk tampilan kartu (Drive otomatis generate gambar hlm 1 PDF)
+                        const thumbnailUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w600`;
+                        // URL khusus iframe Preview untuk melihat full file (Gambar/PDF)
+                        const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+                        
                         imgArea = `
-                            <div class="card-img-wrapper" onclick="openLightbox('${imgUrl}', '${peserta.Nama}')">
-                                <img src="${imgUrl}" alt="Bukti ${peserta.Nama}" loading="lazy">
+                            <div class="card-img-wrapper" onclick="openLightbox('${previewUrl}', '${peserta.Nama}')">
+                                <img src="${thumbnailUrl}" alt="Bukti ${peserta.Nama}" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/600x400?text=Format+PDF/Tdk+Didukung';">
                             </div>
+                            <a href="${peserta["Bukti Foto"]}" target="_blank" style="display:block; text-align:center; padding:8px; background:#f1f5f9; color:var(--primary-dark); font-size:0.8rem; text-decoration:none; font-weight:600; border-bottom:1px solid var(--border);">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka File Asli
+                            </a>
                         `;
                     } else {
                         imgArea = `
@@ -213,7 +278,6 @@
                         `;
                     }
 
-                    // Render Phone Button
                     let waLink = peserta['Nomor Telepon'] || '#';
                     let waBtnText = waLink !== '#' ? 'Hubungi Peserta' : 'Nomor Tidak Tersedia';
                     
@@ -257,18 +321,62 @@
         }
 
         // Lightbox Functions
-        function openLightbox(imgSrc, caption) {
-            document.getElementById("lightboxImg").src = imgSrc;
+        function openLightbox(previewUrl, caption) {
+            document.getElementById("lightboxIframe").src = previewUrl;
             document.getElementById("lightboxCaption").innerText = "Bukti Milik: " + caption;
             document.getElementById("lightbox").style.display = "flex";
         }
 
         function closeLightbox() {
             document.getElementById("lightbox").style.display = "none";
+            document.getElementById("lightboxIframe").src = ""; // Membersihkan iframe agar tidak berat
         }
 
-        // Memuat data 'HADIR' saat halaman pertama kali dibuka
-        window.onload = () => loadData('HADIR');
+        // Fungsi untuk mengambil rekapitulasi secara background
+        async function loadRekap() {
+            const sheets = ['HADIR', 'SAKIT', 'KEAGAMAAN', 'BERDUKA', 'AKADEMIK'];
+            let totalPresensi = 0;
+            const TOTAL_TARGET = 284;
+
+            try {
+                // Fetch semua data sheet secara bersamaan (paralel) agar cepat
+                const fetchPromises = sheets.map(sheet => 
+                    fetch(`${API_URL}?sheet=${sheet}`).then(res => res.json())
+                );
+                
+                const allData = await Promise.all(fetchPromises);
+
+                // Proses hasil dan update angka di UI
+                allData.forEach((data, index) => {
+                    // Validasi: hanya hitung baris yang ada namanya (mengabaikan baris kosong)
+                    const validCount = data.filter(peserta => 
+                        peserta.Nama && 
+                        peserta.Nama !== "#N/A" && 
+                        peserta.Nama !== "#REF!" && 
+                        peserta.NRP
+                    ).length;
+                    totalPresensi += validCount;
+                    
+                    // Update ID sesuai urutan array sheets
+                    const idElement = `rek-${sheets[index].toLowerCase()}`;
+                    document.getElementById(idElement).innerText = validCount;
+                });
+
+                // Hitung Alpa dan tampilkan
+                const totalAlpa = TOTAL_TARGET - totalPresensi;
+                // Mencegah angka minus jika ada data ganda
+                document.getElementById('rek-alpa').innerText = totalAlpa < 0 ? 0 : totalAlpa;
+
+            } catch (error) {
+                console.error("Gagal memuat data rekap:", error);
+            }
+        }
+
+        // Memuat data 'HADIR' dan data REKAP saat halaman pertama kali dibuka
+        window.onload = () => {
+            loadData('HADIR');
+            loadRekap();
+        };
     </script>
 </body>
 </html>
