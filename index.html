@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validasi Kehadiran Voltage</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .card img { width: 100%; height: auto; border-radius: 4px; margin-top: 10px; cursor: pointer; }
+        .card h3 { margin: 0 0 10px 0; color: #333; }
+        .badge { background: #007bff; color: white; padding: 3px 8px; border-radius: 12px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <h1>Verifikasi Bukti Kehadiran/Izin - Voltage</h1>
+    <select id="kategori" onchange="loadData()">
+        <option value="HADIR">Hadir</option>
+        <option value="SAKIT">Sakit</option>
+        <option value="KEAGAMAAN">Keagamaan</option>
+        <option value="BERDUKA">Berduka</option>
+        <option value="AKADEMIK">Akademik</option>
+    </select>
+
+    <div id="loading" style="margin-top: 20px;">Memuat data...</div>
+    <div class="grid" id="container"></div>
+
+    <script>
+        // Ganti dengan Web App URL dari Apps Script Anda
+        const API_URL = "https://script.google.com/macros/s/AKfycbzABxPnjn6NNS332LzojaDrV_4zxVdWkFirrx4mjr4WlSskxDgIz97HXIlW2sQoMO7C/exec";
+
+        // Fungsi mengubah URL Drive agar gambar bisa dirender langsung di HTML
+        function convertDriveUrlToImage(url) {
+            if (!url) return '';
+            // Mengubah format "open?id=" menjadi "uc?export=view&id="
+            return url.replace("open?id=", "uc?export=view&id=");
+        }
+
+        async function loadData() {
+            const sheetName = document.getElementById("kategori").value;
+            const container = document.getElementById("container");
+            const loading = document.getElementById("loading");
+            
+            container.innerHTML = "";
+            loading.style.display = "block";
+
+            try {
+                const response = await fetch(`${API_URL}?sheet=${sheetName}`);
+                const data = await response.json();
+                
+                loading.style.display = "none";
+
+                data.forEach(peserta => {
+                    if(!peserta.Nama) return; // Skip baris kosong
+                    
+                    const imgUrl = convertDriveUrlToImage(peserta["Bukti Foto"]);
+                    
+                    const card = document.createElement("div");
+                    card.className = "card";
+                    card.innerHTML = `
+                        <h3>${peserta.Nama} <span class="badge">${peserta.FGD}</span></h3>
+                        <p><strong>NRP:</strong> ${peserta.NRP}</p>
+                        <p><strong>WA:</strong> <a href="${peserta['Nomor Telepon']}" target="_blank">Hubungi</a></p>
+                        ${imgUrl ? `<a href="${imgUrl}" target="_blank"><img src="${imgUrl}" alt="Bukti ${peserta.Nama}"></a>` : '<p><i>Tidak ada bukti foto</i></p>'}
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                loading.innerHTML = "Gagal memuat data.";
+                console.error(error);
+            }
+        }
+
+        // Load data pertama kali
+        loadData();
+    </script>
+</body>
+</html>
