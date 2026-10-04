@@ -163,7 +163,9 @@
             if (!url) return null;
             const idMatch = url.match(/id=([^&]+)/);
             if (idMatch && idMatch[1]) {
-                return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+                // Menggunakan endpoint /thumbnail?id= yang lebih aman dari blokir CORS Google
+                // sz=w1000 digunakan agar resolusi gambar tetap tajam dan bisa di-zoom
+                return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`;
             }
             return null;
         }
